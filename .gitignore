@@ -1,0 +1,32 @@
+# Local agent / mentor materials (not part of the product)
+.agents/
+
+# Go
+/bin/
+*.exe
+*.test
+*.out
+coverage.out
+vendor/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Proto / codegen artifacts (keep sources; ignore editor junk)
+*.pyc
+
+# Docker
+.docker/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store

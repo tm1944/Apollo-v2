@@ -1,0 +1,2 @@
+# HEL-003: grpcio, grpcio-tools, protobuf
+# HEL-005: torch / transformers (keep the model small; CPU is enough)

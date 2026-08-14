@@ -1,0 +1,8 @@
+# TODO(HEL-015): control plane + at least 3 identical workers.
+# Seed the control plane with Compose DNS addresses, not localhost.
+#
+# services:
+#   controlplane:
+#   worker-1:
+#   worker-2:
+#   worker-3:
