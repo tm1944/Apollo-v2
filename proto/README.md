@@ -18,7 +18,7 @@ Keep proto3, unary RPCs only for V1. No streaming.
 Place something like:
 
 ```text
-proto/helios/inference/v1/inference.proto
+proto/apollo/inference/v1/inference.proto
 ```
 
 Regenerate with `scripts/generate-proto.sh` (fill that script in HEL-002).

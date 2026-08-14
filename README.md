@@ -1,4 +1,4 @@
-# Helios
+# Apollo v2
 
 Distributed AI inference platform (V1 learning project).
 
@@ -55,4 +55,4 @@ go test -race ./...
 
 ## Working agreement
 
-Implement one HEL ticket at a time. See `.agents/helios-v1-tickets.md` locally (gitignored). When a ticket is done, ask for review rather than jumping ahead.
+Implement one HEL ticket at a time. See `.agents/apollo-v1-tickets.md` locally (gitignored). When a ticket is done, ask for review rather than jumping ahead.

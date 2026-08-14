@@ -13,7 +13,7 @@ Identical program/image for every replica. The Go control plane chooses which in
 ```text
 worker/
   requirements.txt     Python deps (add in HEL-003 / HEL-005)
-  helios_worker/       Worker package
+  apollo_worker/       Worker package
     __init__.py
     server.py          gRPC server + servicer
     model.py           Model load + infer (HEL-005)
@@ -22,7 +22,7 @@ worker/
 ## Run (after HEL-003)
 
 ```bash
-python -m helios_worker.server
+python -m apollo_worker.server
 ```
 
 Use a virtualenv. Do not add PyTorch until HEL-005.

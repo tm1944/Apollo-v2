@@ -1,4 +1,4 @@
-// Command controlplane is the Helios Go control plane process.
+// Command controlplane is the Apollo Go control plane process.
 //
 // HEL-001: boot an HTTP server and serve /healthz.
 // Later tickets wire inference, scheduling, health checks, and shutdown here.
