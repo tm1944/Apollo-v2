@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: apollo
+resources:
+  - k8s/namespace.yaml
+  - k8s/app.yaml
+  - k8s/observability.yaml
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: apollo
+configMapGenerator:
+  - name: prometheus-config
+    files:
+      - prometheus.yml=observability/prometheus-k8s.yml
+  - name: grafana-datasources
+    files:
+      - prometheus.yml=observability/grafana/provisioning/datasources/prometheus.yml
+  - name: grafana-dashboard-provider
+    files:
+      - apollo.yml=observability/grafana/provisioning/dashboards/apollo.yml
+  - name: grafana-dashboard
+    files:
+      - apollo.json=observability/grafana/dashboards/apollo.json
+generatorOptions:
+  disableNameSuffixHash: true
+images:
+  - name: apollo-control-plane
+    newTag: dev
+  - name: apollo-worker
+    newTag: dev
