@@ -3,6 +3,7 @@ module github.com/tm1944/Apollo-v2/control-plane
 go 1.25.6
 
 require (
+	github.com/google/uuid v1.6.0
 	google.golang.org/grpc v1.70.0
 	google.golang.org/protobuf v1.36.5
 )

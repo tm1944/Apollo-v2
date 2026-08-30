@@ -1,3 +1,5 @@
 ts	phase	decision	why	evidence	result
 2026-08-29T22:00:00Z	architecture	kept control-plane state in memory and limited it to one replica	this matches the requested durability tradeoff	api/apollo/v1/scheduler.proto	open
 2026-08-30T00:10:00Z	contract	defined one public job service and one bidirectional worker stream	a small typed contract keeps demo tasks safe and gives workers one long-lived connection	api/apollo/v1/scheduler.proto	generated Go and Python bindings compile
+2026-08-30T00:35:00Z	scheduler	used FIFO queue order with capacity-weighted worker selection	jobs stay predictable while workers with more slots receive more concurrent work	control-plane/internal/scheduler/scheduler_test.go	Go race tests pass
+2026-08-30T00:36:00Z	delivery	made attempt IDs authoritative and ignored late results	a failed worker can finish after reassignment under at-least-once delivery	control-plane/internal/scheduler/scheduler_test.go	stale-result test passes
