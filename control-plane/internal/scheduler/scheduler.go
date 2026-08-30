@@ -146,6 +146,7 @@ func (s *Scheduler) Heartbeat(workerID string) error {
 		return ErrWorkerNotFound
 	}
 	w.lastHeartbeat = s.now()
+	s.dispatchLocked()
 	return nil
 }
 
