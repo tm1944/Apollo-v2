@@ -1,0 +1,79 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "title": "Job throughput",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
+      "targets": [
+        {"expr": "sum(rate(apollo_jobs_submitted_total[1m]))", "legendFormat": "submitted/s"},
+        {"expr": "sum(rate(apollo_jobs_completed_total{status=\"succeeded\"}[1m]))", "legendFormat": "completed/s"}
+      ]
+    },
+    {
+      "title": "Scheduling latency p95",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "s"}},
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(apollo_scheduling_latency_seconds_bucket[5m])) by (le))", "legendFormat": "p95"}]
+    },
+    {
+      "title": "Job outcomes",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0},
+      "targets": [{"expr": "sum by (status) (rate(apollo_jobs_completed_total[1m]))", "legendFormat": "{{status}}"}]
+    },
+    {
+      "title": "Queue and running jobs",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8},
+      "targets": [
+        {"expr": "apollo_queue_depth", "legendFormat": "queued"},
+        {"expr": "apollo_running_jobs", "legendFormat": "running"}
+      ]
+    },
+    {
+      "title": "Workers and slots",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8},
+      "targets": [
+        {"expr": "apollo_healthy_workers", "legendFormat": "workers"},
+        {"expr": "apollo_worker_active_slots", "legendFormat": "active slots"},
+        {"expr": "apollo_worker_capacity_slots", "legendFormat": "capacity"}
+      ]
+    },
+    {
+      "title": "Retries and reassignments",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
+      "targets": [
+        {"expr": "sum by (reason) (rate(apollo_job_retries_total[5m]))", "legendFormat": "retry {{reason}}"},
+        {"expr": "rate(apollo_job_reassignments_total[5m])", "legendFormat": "reassigned"}
+      ]
+    },
+    {
+      "title": "Worker utilization",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "targets": [{"expr": "apollo_worker_active_jobs / apollo_worker_capacity", "legendFormat": "{{instance}}"}]
+    },
+    {
+      "title": "Worker memory",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "fieldConfig": {"defaults": {"unit": "bytes"}},
+      "targets": [{"expr": "process_resident_memory_bytes{job=\"workers\"}", "legendFormat": "{{instance}}"}]
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 40,
+  "tags": ["apollo", "scheduler"],
+  "templating": {"list": []},
+  "time": {"from": "now-15m", "to": "now"},
+  "timezone": "browser",
+  "title": "Apollo scheduler",
+  "uid": "apollo-scheduler",
+  "version": 1
+}

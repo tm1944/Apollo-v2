@@ -1,0 +1,5 @@
+grpcio==1.70.0
+protobuf==5.29.3
+prometheus-client==0.21.1
+psutil==6.1.1
+
