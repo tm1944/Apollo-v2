@@ -1,0 +1,3 @@
+ts	phase	decision	why	evidence	result
+2026-08-29T22:00:00Z	architecture	kept control-plane state in memory and limited it to one replica	this matches the requested durability tradeoff	api/apollo/v1/scheduler.proto	open
+2026-08-30T00:10:00Z	contract	defined one public job service and one bidirectional worker stream	a small typed contract keeps demo tasks safe and gives workers one long-lived connection	api/apollo/v1/scheduler.proto	generated Go and Python bindings compile

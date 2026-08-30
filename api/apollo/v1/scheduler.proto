@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+package apollo.v1;
+
+option go_package = "github.com/tm1944/Apollo-v2/control-plane/gen/apollo/v1;apollov1";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+enum TaskType {
+  TASK_TYPE_UNSPECIFIED = 0;
+  TASK_TYPE_ADD = 1;
+  TASK_TYPE_SLEEP = 2;
+  TASK_TYPE_CPU_BURN = 3;
+}
+
+enum JobState {
+  JOB_STATE_UNSPECIFIED = 0;
+  JOB_STATE_QUEUED = 1;
+  JOB_STATE_RUNNING = 2;
+  JOB_STATE_SUCCEEDED = 3;
+  JOB_STATE_FAILED = 4;
+}
+
+message Task {
+  TaskType type = 1;
+  repeated double operands = 2;
+  uint32 duration_ms = 3;
+}
+
+message SubmitJobRequest {
+  Task task = 1;
+  uint32 max_attempts = 2;
+}
+
+message GetJobRequest { string job_id = 1; }
+
+message Job {
+  string id = 1;
+  Task task = 2;
+  JobState state = 3;
+  uint32 max_attempts = 4;
+  uint32 attempts = 5;
+  string result = 6;
+  string error = 7;
+  string worker_id = 8;
+  google.protobuf.Timestamp submitted_at = 9;
+  google.protobuf.Timestamp started_at = 10;
+  google.protobuf.Timestamp finished_at = 11;
+}
+
+message WorkerHello {
+  string worker_id = 1;
+  uint32 capacity = 2;
+}
+
+message WorkerHeartbeat {
+  uint32 active_jobs = 1;
+  double cpu_percent = 2;
+  uint64 memory_bytes = 3;
+}
+
+message JobResult {
+  string job_id = 1;
+  string attempt_id = 2;
+  string result = 3;
+}
+
+message JobFailure {
+  string job_id = 1;
+  string attempt_id = 2;
+  string error = 3;
+  bool retryable = 4;
+}
+
+message WorkerMessage {
+  oneof message {
+    WorkerHello hello = 1;
+    WorkerHeartbeat heartbeat = 2;
+    JobResult result = 3;
+    JobFailure failure = 4;
+  }
+}
+
+message Assignment {
+  string job_id = 1;
+  string attempt_id = 2;
+  Task task = 3;
+}
+
+message SchedulerMessage {
+  oneof message { Assignment assignment = 1; }
+}
+
+service JobService {
+  rpc SubmitJob(SubmitJobRequest) returns (Job);
+  rpc GetJob(GetJobRequest) returns (Job);
+  rpc Health(google.protobuf.Empty) returns (google.protobuf.Empty);
+}
+
+service WorkerService {
+  rpc Work(stream WorkerMessage) returns (stream SchedulerMessage);
+}

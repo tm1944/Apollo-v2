@@ -1,0 +1,12 @@
+version: v2
+plugins:
+  - remote: buf.build/protocolbuffers/go:v1.36.6
+    out: control-plane/gen
+    opt: paths=source_relative
+  - remote: buf.build/grpc/go:v1.5.1
+    out: control-plane/gen
+    opt: paths=source_relative
+  - remote: buf.build/protocolbuffers/python:v29.3
+    out: worker/gen
+  - remote: buf.build/grpc/python:v1.70.0
+    out: worker/gen
