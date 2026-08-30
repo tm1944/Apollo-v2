@@ -29,6 +29,15 @@ type Config struct {
 	Now        func() time.Time
 	NewID      func() string
 	RetryDelay func(attempt uint32) time.Duration
+	Observer   Observer
+}
+
+type Observer interface {
+	JobSubmitted(task string)
+	JobStarted(task string, schedulingLatency time.Duration)
+	JobFinished(task, status string, duration time.Duration)
+	JobRetried(reason string, reassigned bool)
+	SetState(queued, running, workers, activeSlots, capacitySlots int)
 }
 
 type queuedJob struct {
@@ -50,13 +59,14 @@ type worker struct {
 }
 
 type Scheduler struct {
-	mu      sync.Mutex
-	jobs    map[string]*apollov1.Job
-	queue   []queuedJob
-	workers map[string]*worker
-	now     func() time.Time
-	newID   func() string
-	retry   func(uint32) time.Duration
+	mu       sync.Mutex
+	jobs     map[string]*apollov1.Job
+	queue    []queuedJob
+	workers  map[string]*worker
+	now      func() time.Time
+	newID    func() string
+	retry    func(uint32) time.Duration
+	observer Observer
 }
 
 func New(cfg Config) *Scheduler {
@@ -72,11 +82,12 @@ func New(cfg Config) *Scheduler {
 		}
 	}
 	return &Scheduler{
-		jobs:    make(map[string]*apollov1.Job),
-		workers: make(map[string]*worker),
-		now:     cfg.Now,
-		newID:   cfg.NewID,
-		retry:   cfg.RetryDelay,
+		jobs:     make(map[string]*apollov1.Job),
+		workers:  make(map[string]*worker),
+		now:      cfg.Now,
+		newID:    cfg.NewID,
+		retry:    cfg.RetryDelay,
+		observer: cfg.Observer,
 	}
 }
 
@@ -103,7 +114,9 @@ func (s *Scheduler) Submit(task *apollov1.Task, maxAttempts uint32) (*apollov1.J
 	}
 	s.jobs[job.Id] = job
 	s.queue = append(s.queue, queuedJob{jobID: job.Id, readyAt: now})
+	s.observeSubmitted(job)
 	s.dispatchLocked()
+	s.syncStateLocked()
 	return cloneJob(job), nil
 }
 
@@ -135,6 +148,7 @@ func (s *Scheduler) RegisterWorker(workerID string, capacity uint32) (<-chan *ap
 	}
 	s.workers[workerID] = w
 	s.dispatchLocked()
+	s.syncStateLocked()
 	return w.assignments, nil
 }
 
@@ -147,6 +161,7 @@ func (s *Scheduler) Heartbeat(workerID string) error {
 	}
 	w.lastHeartbeat = s.now()
 	s.dispatchLocked()
+	s.syncStateLocked()
 	return nil
 }
 
@@ -163,7 +178,9 @@ func (s *Scheduler) Complete(workerID, jobID, attemptID, result string) error {
 	job.Result = result
 	job.Error = ""
 	job.FinishedAt = timestamppb.New(now)
+	s.observeFinished(job, "succeeded")
 	s.dispatchLocked()
+	s.syncStateLocked()
 	return nil
 }
 
@@ -175,8 +192,9 @@ func (s *Scheduler) Fail(workerID, jobID, attemptID, message string, retryable b
 		return err
 	}
 	delete(w.active, attemptID)
-	s.failOrRetryLocked(job, message, retryable, s.retry(job.Attempts))
+	s.failOrRetryLocked(job, message, retryable, s.retry(job.Attempts), "task_failure")
 	s.dispatchLocked()
+	s.syncStateLocked()
 	return nil
 }
 
@@ -190,10 +208,11 @@ func (s *Scheduler) UnregisterWorker(workerID string) error {
 	delete(s.workers, workerID)
 	for _, attempt := range w.active {
 		job := s.jobs[attempt.jobID]
-		s.failOrRetryLocked(job, "worker disconnected", true, 0)
+		s.failOrRetryLocked(job, "worker disconnected", true, 0, "worker_disconnect")
 	}
 	close(w.assignments)
 	s.dispatchLocked()
+	s.syncStateLocked()
 	return nil
 }
 
@@ -208,13 +227,14 @@ func (s *Scheduler) RemoveUnhealthy(timeout time.Duration) []string {
 		}
 		delete(s.workers, id)
 		for _, attempt := range w.active {
-			s.failOrRetryLocked(s.jobs[attempt.jobID], "worker heartbeat timed out", true, 0)
+			s.failOrRetryLocked(s.jobs[attempt.jobID], "worker heartbeat timed out", true, 0, "heartbeat_timeout")
 		}
 		close(w.assignments)
 		removed = append(removed, id)
 	}
 	sort.Strings(removed)
 	s.dispatchLocked()
+	s.syncStateLocked()
 	return removed
 }
 
@@ -222,6 +242,7 @@ func (s *Scheduler) Dispatch() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.dispatchLocked()
+	s.syncStateLocked()
 }
 
 func (s *Scheduler) Counts() (queued, running int, workers int) {
@@ -254,16 +275,20 @@ func (s *Scheduler) activeJobLocked(workerID, jobID, attemptID string) (*worker,
 	return w, job, nil
 }
 
-func (s *Scheduler) failOrRetryLocked(job *apollov1.Job, message string, retryable bool, delay time.Duration) {
+func (s *Scheduler) failOrRetryLocked(job *apollov1.Job, message string, retryable bool, delay time.Duration, reason string) {
 	job.WorkerId = ""
 	job.Error = message
 	if retryable && job.Attempts < job.MaxAttempts {
 		job.State = apollov1.JobState_JOB_STATE_QUEUED
 		s.queue = append(s.queue, queuedJob{jobID: job.Id, readyAt: s.now().Add(delay)})
+		if s.observer != nil {
+			s.observer.JobRetried(reason, reason == "worker_disconnect" || reason == "heartbeat_timeout")
+		}
 		return
 	}
 	job.State = apollov1.JobState_JOB_STATE_FAILED
 	job.FinishedAt = timestamppb.New(s.now())
+	s.observeFinished(job, "failed")
 }
 
 func (s *Scheduler) dispatchLocked() {
@@ -285,12 +310,56 @@ func (s *Scheduler) dispatchLocked() {
 		job.WorkerId = worker.id
 		job.StartedAt = timestamppb.New(s.now())
 		worker.active[attemptID] = activeAttempt{jobID: job.Id, attemptID: attemptID}
+		if s.observer != nil {
+			s.observer.JobStarted(taskLabel(job.Task), s.now().Sub(job.SubmittedAt.AsTime()))
+		}
 		worker.assignments <- &apollov1.Assignment{
 			JobId:     job.Id,
 			AttemptId: attemptID,
 			Task:      proto.Clone(job.Task).(*apollov1.Task),
 		}
 	}
+}
+
+func (s *Scheduler) observeSubmitted(job *apollov1.Job) {
+	if s.observer != nil {
+		s.observer.JobSubmitted(taskLabel(job.Task))
+	}
+}
+
+func (s *Scheduler) observeFinished(job *apollov1.Job, status string) {
+	if s.observer == nil {
+		return
+	}
+	duration := time.Duration(0)
+	if job.StartedAt != nil {
+		duration = s.now().Sub(job.StartedAt.AsTime())
+	}
+	s.observer.JobFinished(taskLabel(job.Task), status, duration)
+}
+
+func (s *Scheduler) syncStateLocked() {
+	if s.observer == nil {
+		return
+	}
+	queued, running, activeSlots, capacitySlots := 0, 0, 0, 0
+	for _, job := range s.jobs {
+		switch job.State {
+		case apollov1.JobState_JOB_STATE_QUEUED:
+			queued++
+		case apollov1.JobState_JOB_STATE_RUNNING:
+			running++
+		}
+	}
+	for _, worker := range s.workers {
+		activeSlots += len(worker.active)
+		capacitySlots += int(worker.capacity)
+	}
+	s.observer.SetState(queued, running, len(s.workers), activeSlots, capacitySlots)
+}
+
+func taskLabel(task *apollov1.Task) string {
+	return task.GetType().String()
 }
 
 func (s *Scheduler) readyJobIndexLocked() int {
