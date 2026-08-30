@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "started_at": "2026-08-30T00:51:44Z",
+  "config": {
+    "address": "localhost:15051",
+    "rate_jobs_per_second": 800,
+    "duration": "4s",
+    "concurrency": 256,
+    "task_mix": "add=0,sleep=100,cpu=0",
+    "sleep_ms": 10,
+    "cpu_ms": 10,
+    "max_attempts": 3,
+    "poll_interval": "2ms"
+  },
+  "submitted": 3148,
+  "succeeded": 3148,
+  "failed": 0,
+  "rpc_errors": 0,
+  "wall_seconds": 4.711454625,
+  "throughput_jobs_per_second": 668.1588279118787,
+  "scheduling_latency_p50_ms": 0.145833,
+  "scheduling_latency_p95_ms": 429.70925,
+  "scheduling_latency_p99_ms": 613.775458,
+  "completion_latency_p95_ms": 477.106084
+}

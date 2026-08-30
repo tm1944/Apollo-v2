@@ -9,7 +9,6 @@ import (
 	"github.com/tm1944/Apollo-v2/control-plane/internal/scheduler"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type Server struct {
@@ -22,15 +21,15 @@ func NewServer(s *scheduler.Scheduler) *Server {
 	return &Server{scheduler: s}
 }
 
-func (s *Server) SubmitJob(_ context.Context, req *apollov1.SubmitJobRequest) (*apollov1.Job, error) {
+func (s *Server) SubmitJob(_ context.Context, req *apollov1.SubmitJobRequest) (*apollov1.SubmitJobResponse, error) {
 	job, err := s.scheduler.Submit(req.GetTask(), req.GetMaxAttempts())
 	if err != nil {
 		return nil, mapError(err)
 	}
-	return job, nil
+	return &apollov1.SubmitJobResponse{Job: job}, nil
 }
 
-func (s *Server) GetJob(_ context.Context, req *apollov1.GetJobRequest) (*apollov1.Job, error) {
+func (s *Server) GetJob(_ context.Context, req *apollov1.GetJobRequest) (*apollov1.GetJobResponse, error) {
 	if req.GetJobId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "job_id is required")
 	}
@@ -38,15 +37,15 @@ func (s *Server) GetJob(_ context.Context, req *apollov1.GetJobRequest) (*apollo
 	if err != nil {
 		return nil, mapError(err)
 	}
-	return job, nil
+	return &apollov1.GetJobResponse{Job: job}, nil
 }
 
-func (s *Server) Health(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, nil
+func (s *Server) Health(context.Context, *apollov1.HealthRequest) (*apollov1.HealthResponse, error) {
+	return &apollov1.HealthResponse{}, nil
 }
 
 type received struct {
-	message *apollov1.WorkerMessage
+	message *apollov1.WorkRequest
 	err     error
 }
 
@@ -89,8 +88,8 @@ func (s *Server) Work(stream apollov1.WorkerService_WorkServer) error {
 			if !ok {
 				return status.Error(codes.Unavailable, "worker removed after heartbeat timeout")
 			}
-			if err := stream.Send(&apollov1.SchedulerMessage{
-				Message: &apollov1.SchedulerMessage_Assignment{Assignment: assignment},
+			if err := stream.Send(&apollov1.WorkResponse{
+				Message: &apollov1.WorkResponse_Assignment{Assignment: assignment},
 			}); err != nil {
 				return mapStreamError(err)
 			}
@@ -105,15 +104,15 @@ func (s *Server) Work(stream apollov1.WorkerService_WorkServer) error {
 	}
 }
 
-func (s *Server) handleWorkerMessage(workerID string, message *apollov1.WorkerMessage) error {
+func (s *Server) handleWorkerMessage(workerID string, message *apollov1.WorkRequest) error {
 	switch value := message.GetMessage().(type) {
-	case *apollov1.WorkerMessage_Heartbeat:
+	case *apollov1.WorkRequest_Heartbeat:
 		return s.scheduler.Heartbeat(workerID)
-	case *apollov1.WorkerMessage_Result:
+	case *apollov1.WorkRequest_Result:
 		return s.scheduler.Complete(workerID, value.Result.GetJobId(), value.Result.GetAttemptId(), value.Result.GetResult())
-	case *apollov1.WorkerMessage_Failure:
+	case *apollov1.WorkRequest_Failure:
 		return s.scheduler.Fail(workerID, value.Failure.GetJobId(), value.Failure.GetAttemptId(), value.Failure.GetError(), value.Failure.GetRetryable())
-	case *apollov1.WorkerMessage_Hello:
+	case *apollov1.WorkRequest_Hello:
 		return errors.New("hello may only be sent once")
 	default:
 		return errors.New("worker message is empty")

@@ -4,7 +4,6 @@ package apollo.v1;
 
 option go_package = "github.com/tm1944/Apollo-v2/control-plane/gen/apollo/v1;apollov1";
 
-import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 enum TaskType {
@@ -34,6 +33,14 @@ message SubmitJobRequest {
 }
 
 message GetJobRequest { string job_id = 1; }
+
+message SubmitJobResponse { Job job = 1; }
+
+message GetJobResponse { Job job = 1; }
+
+message HealthRequest {}
+
+message HealthResponse {}
 
 message Job {
   string id = 1;
@@ -73,7 +80,7 @@ message JobFailure {
   bool retryable = 4;
 }
 
-message WorkerMessage {
+message WorkRequest {
   oneof message {
     WorkerHello hello = 1;
     WorkerHeartbeat heartbeat = 2;
@@ -88,16 +95,16 @@ message Assignment {
   Task task = 3;
 }
 
-message SchedulerMessage {
+message WorkResponse {
   oneof message { Assignment assignment = 1; }
 }
 
 service JobService {
-  rpc SubmitJob(SubmitJobRequest) returns (Job);
-  rpc GetJob(GetJobRequest) returns (Job);
-  rpc Health(google.protobuf.Empty) returns (google.protobuf.Empty);
+  rpc SubmitJob(SubmitJobRequest) returns (SubmitJobResponse);
+  rpc GetJob(GetJobRequest) returns (GetJobResponse);
+  rpc Health(HealthRequest) returns (HealthResponse);
 }
 
 service WorkerService {
-  rpc Work(stream WorkerMessage) returns (stream SchedulerMessage);
+  rpc Work(stream WorkRequest) returns (stream WorkResponse);
 }

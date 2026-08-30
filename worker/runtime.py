@@ -82,7 +82,7 @@ class TaskRunner:
     def __init__(
         self,
         capacity: int,
-        output: queue.Queue[scheduler_pb2.WorkerMessage],
+        output: queue.Queue[scheduler_pb2.WorkRequest],
         execute: Callable[[scheduler_pb2.Task], str] = execute_task,
     ) -> None:
         self._output = output
@@ -122,7 +122,7 @@ class TaskRunner:
             self._futures.discard(future)
             ACTIVE_JOBS.set(len(self._futures))
         try:
-            message = scheduler_pb2.WorkerMessage(
+            message = scheduler_pb2.WorkRequest(
                 result=scheduler_pb2.JobResult(
                     job_id=assignment.job_id,
                     attempt_id=assignment.attempt_id,
@@ -130,7 +130,7 @@ class TaskRunner:
                 )
             )
         except Exception as exc:
-            message = scheduler_pb2.WorkerMessage(
+            message = scheduler_pb2.WorkRequest(
                 failure=scheduler_pb2.JobFailure(
                     job_id=assignment.job_id,
                     attempt_id=assignment.attempt_id,
@@ -200,7 +200,7 @@ class Worker:
                 channel.close()
 
     def run_connection(self, stub: Any, stop: threading.Event) -> None:
-        outbound: queue.Queue[scheduler_pb2.WorkerMessage] = queue.Queue()
+        outbound: queue.Queue[scheduler_pb2.WorkRequest] = queue.Queue()
         runner = TaskRunner(self.config.capacity, outbound)
         try:
             for message in stub.Work(self._requests(outbound, runner, stop)):
@@ -221,28 +221,34 @@ class Worker:
 
     def _requests(
         self,
-        outbound: queue.Queue[scheduler_pb2.WorkerMessage],
+        outbound: queue.Queue[scheduler_pb2.WorkRequest],
         runner: TaskRunner,
         stop: threading.Event,
-    ) -> Iterator[scheduler_pb2.WorkerMessage]:
-        yield scheduler_pb2.WorkerMessage(
+    ) -> Iterator[scheduler_pb2.WorkRequest]:
+        yield scheduler_pb2.WorkRequest(
             hello=scheduler_pb2.WorkerHello(
                 worker_id=self.config.worker_id,
                 capacity=self.config.capacity,
             )
         )
+        next_heartbeat = time.monotonic() + self.config.heartbeat_seconds
         while not stop.is_set():
-            try:
-                yield outbound.get(timeout=self.config.heartbeat_seconds)
-            except queue.Empty:
+            now = time.monotonic()
+            if now >= next_heartbeat:
                 memory = self.process.memory_info().rss
-                yield scheduler_pb2.WorkerMessage(
+                yield scheduler_pb2.WorkRequest(
                     heartbeat=scheduler_pb2.WorkerHeartbeat(
                         active_jobs=runner.active,
                         cpu_percent=self.process.cpu_percent(),
                         memory_bytes=memory,
                     )
                 )
+                next_heartbeat = time.monotonic() + self.config.heartbeat_seconds
+                continue
+            try:
+                yield outbound.get(timeout=next_heartbeat - now)
+            except queue.Empty:
+                continue
 
 
 def main() -> None:

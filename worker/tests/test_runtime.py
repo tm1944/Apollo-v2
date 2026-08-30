@@ -21,7 +21,7 @@ def test_execute_rejects_invalid_task() -> None:
 
 
 def test_runner_bounds_concurrency() -> None:
-    output: queue.Queue[scheduler_pb2.WorkerMessage] = queue.Queue()
+    output: queue.Queue[scheduler_pb2.WorkRequest] = queue.Queue()
     lock = threading.Lock()
     active = 0
     high_water = 0
@@ -52,7 +52,7 @@ def test_runner_bounds_concurrency() -> None:
 
 
 def test_runner_reports_value_errors_as_non_retryable() -> None:
-    output: queue.Queue[scheduler_pb2.WorkerMessage] = queue.Queue()
+    output: queue.Queue[scheduler_pb2.WorkRequest] = queue.Queue()
 
     def fail(_task: scheduler_pb2.Task) -> str:
         raise ValueError("bad input")
@@ -74,3 +74,30 @@ def test_runner_reports_value_errors_as_non_retryable() -> None:
 def test_worker_validates_capacity() -> None:
     with pytest.raises(ValueError, match="capacity"):
         Worker(WorkerConfig(worker_id="worker", capacity=0))
+
+
+def test_heartbeat_is_not_starved_by_results() -> None:
+    outbound: queue.Queue[scheduler_pb2.WorkRequest] = queue.Queue()
+    runner = TaskRunner(1, outbound)
+    worker = Worker(
+        WorkerConfig(worker_id="worker", capacity=1, heartbeat_seconds=0.01)
+    )
+    stop = threading.Event()
+    requests = worker._requests(outbound, runner, stop)
+    assert next(requests).HasField("hello")
+    outbound.put(
+        scheduler_pb2.WorkRequest(
+            result=scheduler_pb2.JobResult(job_id="job-1", attempt_id="attempt-1", result="3")
+        )
+    )
+    assert next(requests).HasField("result")
+    outbound.put(
+        scheduler_pb2.WorkRequest(
+            result=scheduler_pb2.JobResult(job_id="job-2", attempt_id="attempt-2", result="3")
+        )
+    )
+    time.sleep(0.02)
+    assert next(requests).HasField("heartbeat")
+    assert next(requests).HasField("result")
+    stop.set()
+    runner.close()

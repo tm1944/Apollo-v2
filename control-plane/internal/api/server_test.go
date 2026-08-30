@@ -43,13 +43,14 @@ func TestSubmitAssignCompleteAndGet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := stream.Send(&apollov1.WorkerMessage{Message: &apollov1.WorkerMessage_Hello{Hello: &apollov1.WorkerHello{WorkerId: "test-worker", Capacity: 1}}}); err != nil {
+	if err := stream.Send(&apollov1.WorkRequest{Message: &apollov1.WorkRequest_Hello{Hello: &apollov1.WorkerHello{WorkerId: "test-worker", Capacity: 1}}}); err != nil {
 		t.Fatal(err)
 	}
-	job, err := jobs.SubmitJob(ctx, &apollov1.SubmitJobRequest{Task: &apollov1.Task{Type: apollov1.TaskType_TASK_TYPE_ADD, Operands: []float64{2, 3}}})
+	response, err := jobs.SubmitJob(ctx, &apollov1.SubmitJobRequest{Task: &apollov1.Task{Type: apollov1.TaskType_TASK_TYPE_ADD, Operands: []float64{2, 3}}})
 	if err != nil {
 		t.Fatal(err)
 	}
+	job := response.GetJob()
 	message, err := stream.Recv()
 	if err != nil {
 		t.Fatal(err)
@@ -58,14 +59,15 @@ func TestSubmitAssignCompleteAndGet(t *testing.T) {
 	if assignment.GetJobId() != job.GetId() {
 		t.Fatalf("assignment job = %q, want %q", assignment.GetJobId(), job.GetId())
 	}
-	if err := stream.Send(&apollov1.WorkerMessage{Message: &apollov1.WorkerMessage_Result{Result: &apollov1.JobResult{JobId: job.GetId(), AttemptId: assignment.GetAttemptId(), Result: "5"}}}); err != nil {
+	if err := stream.Send(&apollov1.WorkRequest{Message: &apollov1.WorkRequest_Result{Result: &apollov1.JobResult{JobId: job.GetId(), AttemptId: assignment.GetAttemptId(), Result: "5"}}}); err != nil {
 		t.Fatal(err)
 	}
 	for {
-		got, getErr := jobs.GetJob(ctx, &apollov1.GetJobRequest{JobId: job.GetId()})
+		getResponse, getErr := jobs.GetJob(ctx, &apollov1.GetJobRequest{JobId: job.GetId()})
 		if getErr != nil {
 			t.Fatal(getErr)
 		}
+		got := getResponse.GetJob()
 		if got.GetState() == apollov1.JobState_JOB_STATE_SUCCEEDED {
 			if got.GetResult() != "5" {
 				t.Fatalf("result = %q", got.GetResult())
@@ -81,7 +83,7 @@ func TestRejectsMessageBeforeHello(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	stream, _ := workers.Work(ctx)
-	if err := stream.Send(&apollov1.WorkerMessage{Message: &apollov1.WorkerMessage_Heartbeat{Heartbeat: &apollov1.WorkerHeartbeat{}}}); err != nil {
+	if err := stream.Send(&apollov1.WorkRequest{Message: &apollov1.WorkRequest_Heartbeat{Heartbeat: &apollov1.WorkerHeartbeat{}}}); err != nil {
 		t.Fatal(err)
 	}
 	_, err := stream.Recv()

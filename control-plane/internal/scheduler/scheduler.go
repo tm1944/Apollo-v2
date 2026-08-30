@@ -342,20 +342,12 @@ func (s *Scheduler) syncStateLocked() {
 	if s.observer == nil {
 		return
 	}
-	queued, running, activeSlots, capacitySlots := 0, 0, 0, 0
-	for _, job := range s.jobs {
-		switch job.State {
-		case apollov1.JobState_JOB_STATE_QUEUED:
-			queued++
-		case apollov1.JobState_JOB_STATE_RUNNING:
-			running++
-		}
-	}
+	queued, activeSlots, capacitySlots := len(s.queue), 0, 0
 	for _, worker := range s.workers {
 		activeSlots += len(worker.active)
 		capacitySlots += int(worker.capacity)
 	}
-	s.observer.SetState(queued, running, len(s.workers), activeSlots, capacitySlots)
+	s.observer.SetState(queued, activeSlots, len(s.workers), activeSlots, capacitySlots)
 }
 
 func taskLabel(task *apollov1.Task) string {

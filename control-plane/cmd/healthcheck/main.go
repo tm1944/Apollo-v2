@@ -9,7 +9,6 @@ import (
 	apollov1 "github.com/tm1944/Apollo-v2/control-plane/gen/apollo/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func main() {
@@ -22,7 +21,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer conn.Close()
-	if _, err = apollov1.NewJobServiceClient(conn).Health(ctx, &emptypb.Empty{}); err != nil {
+	if _, err = apollov1.NewJobServiceClient(conn).Health(ctx, &apollov1.HealthRequest{}); err != nil {
 		os.Exit(1)
 	}
 }
