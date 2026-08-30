@@ -1,0 +1,28 @@
+name: apollo
+
+services:
+  control-plane:
+    build:
+      context: .
+      dockerfile: control-plane/Dockerfile
+    command: ["-grpc-address", ":50051"]
+    ports:
+      - "50051:50051"
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD", "/healthcheck", "-address", "localhost:50051"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    environment:
+      APOLLO_SCHEDULER_ADDRESS: control-plane:50051
+      APOLLO_WORKER_CAPACITY: "4"
+      APOLLO_METRICS_PORT: "8000"
+    depends_on:
+      control-plane:
+        condition: service_healthy

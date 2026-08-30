@@ -1,0 +1,12 @@
+.git
+.github
+.audit
+.venv
+.apolloVenv
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/*.pyc
+docs
+deploy
+bench
